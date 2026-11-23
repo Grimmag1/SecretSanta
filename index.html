@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Secret Santa</title>
+    <style>
+      :root {
+        --bg: #14202b;
+        --card: #1d2e3c;
+        --fg: #f4f1ea;
+        --muted: #9fb0bd;
+        --accent: #d94f4f;
+        --accent2: #3e8e6a;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--bg);
+        color: var(--fg);
+        font-family:
+          system-ui,
+          -apple-system,
+          Segoe UI,
+          Roboto,
+          sans-serif;
+        padding: 16px;
+      }
+      .card {
+        background: var(--card);
+        border-radius: 16px;
+        padding: 28px;
+        width: 100%;
+        max-width: 440px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+        text-align: center;
+      }
+      h1 {
+        margin: 0 0 6px;
+        font-size: 1.6rem;
+      }
+      h2 {
+        margin: 0 0 12px;
+        font-size: 1.3rem;
+      }
+      p {
+        color: var(--muted);
+        margin: 0 0 18px;
+        line-height: 1.45;
+      }
+      .big {
+        font-size: 2.2rem;
+        font-weight: 700;
+        color: var(--fg);
+        margin: 10px 0 24px;
+        word-break: break-word;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 14px;
+      }
+      input {
+        flex: 1;
+        min-width: 0;
+        padding: 12px;
+        border-radius: 10px;
+        border: 1px solid #38505f;
+        background: #14202b;
+        color: var(--fg);
+        font-size: 1rem;
+      }
+      button {
+        padding: 12px 18px;
+        border: 0;
+        border-radius: 10px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        background: var(--accent);
+        color: #fff;
+      }
+      button:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      button.alt {
+        background: var(--accent2);
+      }
+      button.ghost {
+        background: transparent;
+        border: 1px solid #38505f;
+        color: var(--muted);
+      }
+      button.full {
+        width: 100%;
+      }
+      ul {
+        list-style: none;
+        padding: 0;
+        margin: 0 0 18px;
+        text-align: left;
+      }
+      li {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 9px 12px;
+        background: #14202b;
+        border-radius: 8px;
+        margin-bottom: 6px;
+      }
+      li button {
+        padding: 2px 10px;
+        background: transparent;
+        color: var(--muted);
+        font-size: 1.2rem;
+      }
+      .err {
+        color: #ff9b9b;
+        min-height: 1.2em;
+        margin: -6px 0 10px;
+        font-size: 0.9rem;
+      }
+      .hidden {
+        display: none;
+      }
+      .progress {
+        font-size: 0.85rem;
+        color: var(--muted);
+        margin-bottom: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <section id="setup">
+        <h1>🎅 Secret Santa</h1>
+        <p>Přidej účastníky</p>
+        <form class="row" id="addForm">
+          <input
+            id="nameInput"
+            placeholder="Jméno"
+            autocomplete="off"
+            maxlength="40"
+          />
+          <button type="submit">Přidat</button>
+        </form>
+        <div class="err" id="err"></div>
+        <ul id="list"></ul>
+        <button class="full" id="startBtn" disabled>Začít</button>
+      </section>
+
+      <section id="handover" class="hidden">
+        <div class="progress" id="progress"></div>
+        <h2>Předej zařízení účastníkovi</h2>
+        <div class="big" id="handoverName"></div>
+        <p>Jenom tento účastník by se měl dívat na obrazovku</p>
+        <button class="full" id="imBtn"></button>
+      </section>
+
+      <section id="reveal" class="hidden">
+        <h2 id="revealHello"></h2>
+        <p>Jsi Secret Santou pro účastníka:</p>
+        <div class="big" id="target">••••••</div>
+        <button class="full ghost" id="showBtn">Klikni pro zobrazení</button>
+        <button class="full hidden" id="doneBtn" style="margin-top: 8px">
+          Mám to - schovat
+        </button>
+      </section>
+
+      <section id="finished" class="hidden">
+        <h1>🎁 Všechno hotovo!</h1>
+        <p>Všichni by teď měli vědět, komu dělají Secret Santu</p>
+        <button class="full" id="restartBtn">Začít od začátku</button>
+      </section>
+    </main>
+
+    <script>
+      (function () {
+        const $ = (id) => document.getElementById(id);
+        const screens = ["setup", "handover", "reveal", "finished"];
+        const show = (name) =>
+          screens.forEach((s) => $(s).classList.toggle("hidden", s !== name));
+
+        let names = [];
+        let assignment = [];
+        let current = 0;
+
+        function renderList() {
+          const ul = $("list");
+          ul.textContent = "";
+          names.forEach((n, i) => {
+            const li = document.createElement("li");
+            const span = document.createElement("span");
+            span.textContent = n;
+            const rm = document.createElement("button");
+            rm.textContent = "×";
+            rm.title = "Remove";
+            rm.onclick = () => {
+              names.splice(i, 1);
+              renderList();
+            };
+            li.append(span, rm);
+            ul.appendChild(li);
+          });
+          $("startBtn").disabled = names.length < 3;
+        }
+
+        $("addForm").addEventListener("submit", (e) => {
+          e.preventDefault();
+          const name = $("nameInput").value.trim();
+          $("err").textContent = "";
+          if (!name) return;
+          if (names.some((n) => n.toLowerCase() === name.toLowerCase())) {
+            $("err").textContent = "Toto jméno je již v seznamu";
+            return;
+          }
+          names.push(name);
+          $("nameInput").value = "";
+          $("nameInput").focus();
+          renderList();
+        });
+
+        // ---- Sattolo's algorithm: uniform random single cycle ----
+        // Guarantees: nobody gets themselves, everyone is picked exactly once, no 2-person swaps (n>2).
+        function randInt(n) {
+          const buf = new Uint32Array(1);
+          const limit = Math.floor(0x100000000 / n) * n;
+          do {
+            crypto.getRandomValues(buf);
+          } while (buf[0] >= limit);
+          return buf[0] % n;
+        }
+        function sattolo(n) {
+          const a = Array.from({ length: n }, (_, i) => i);
+          for (let i = n - 1; i > 0; i--) {
+            const j = randInt(i); // 0 <= j < i  (never j == i)
+            [a[i], a[j]] = [a[j], a[i]];
+          }
+          return a;
+        }
+
+        // ---- Flow ----
+        $("startBtn").onclick = () => {
+          assignment = sattolo(names.length);
+          current = 0;
+          goHandover();
+        };
+
+        function goHandover() {
+          $("progress").textContent = `${current + 1} / ${names.length}`;
+          $("handoverName").textContent = names[current];
+          $("imBtn").textContent = `Jsem ${names[current]}`;
+          show("handover");
+        }
+
+        $("imBtn").onclick = () => {
+          $("revealHello").textContent = `Ahoj, ${names[current]}!`;
+          $("target").textContent = "••••••";
+          $("showBtn").classList.remove("hidden");
+          $("doneBtn").classList.add("hidden");
+          show("reveal");
+        };
+
+        $("showBtn").onclick = () => {
+          $("target").textContent = names[assignment[current]];
+          $("showBtn").classList.add("hidden");
+          $("doneBtn").classList.remove("hidden");
+        };
+
+        $("doneBtn").onclick = () => {
+          $("target").textContent = "••••••";
+          current++;
+          if (current >= names.length) {
+            assignment = [];
+            show("finished");
+          } else {
+            goHandover();
+          }
+        };
+
+        $("restartBtn").onclick = () => {
+          names = [];
+          assignment = [];
+          renderList();
+          show("setup");
+        };
+
+        renderList();
+        show("setup");
+      })();
+    </script>
+  </body>
+</html>
